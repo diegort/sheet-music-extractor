@@ -25,12 +25,11 @@ DEVICE_PROFILES = {
 
 DEFAULT_PROFILE = "kindle_pw_7gen_6"
 
-CUSTOM_PROFILES_FILE = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "custom_profiles.json"
-)
-SETTINGS_FILE = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "settings.json"
-)
+USER_CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".sheet-music-extractor")
+os.makedirs(USER_CONFIG_DIR, exist_ok=True)
+
+CUSTOM_PROFILES_FILE = os.path.join(USER_CONFIG_DIR, "custom_profiles.json")
+SETTINGS_FILE = os.path.join(USER_CONFIG_DIR, "settings.json")
 
 
 def build_profile(name, screen_w, screen_h, diagonal_inches):
