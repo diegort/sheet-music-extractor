@@ -1,0 +1,149 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+env:
+  APP_NAME: SheetMusicExtractor
+  MACOS_APP_NAME: Extractor Partituras para eBook
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller Pillow
+
+      - name: Convert icon to .ico
+        run: python -c "from PIL import Image; Image.open('icon.png').save('icon.ico', format='ICO', sizes=[(256,256),(128,128),(64,64),(48,48),(32,32),(16,16)])"
+
+      - name: Build executable
+        run: >
+          pyinstaller
+          --onefile
+          --windowed
+          --icon icon.ico
+          --add-data "icon.png;."
+          --name "${{ env.APP_NAME }}"
+          extractor.py
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APP_NAME }}-windows
+          path: dist/${{ env.APP_NAME }}.exe
+
+  build-macos:
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Convert icon to .icns
+        run: |
+          mkdir -p icon.iconset
+          for size in 16 32 64 128 256 512; do
+            sips -z $size $size icon.png --out icon.iconset/icon_${size}x${size}.png
+            double=$((size * 2))
+            if [ $double -le 1024 ]; then
+              sips -z $double $double icon.png --out icon.iconset/icon_${size}x${size}@2x.png
+            fi
+          done
+          iconutil -c icns icon.iconset
+
+      - name: Build app bundle
+        run: >
+          pyinstaller
+          --windowed
+          --icon icon.icns
+          --add-data "icon.png:."
+          --name "${{ env.MACOS_APP_NAME }}"
+          extractor.py
+
+      - name: Create zip
+        run: |
+          cd dist
+          zip -r "${{ env.APP_NAME }}-macos.zip" "${{ env.MACOS_APP_NAME }}.app"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APP_NAME }}-macos
+          path: dist/${{ env.APP_NAME }}-macos.zip
+
+  build-linux:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y python3-tk
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build executable
+        run: >
+          pyinstaller
+          --onefile
+          --add-data "icon.png:."
+          --name "${{ env.APP_NAME }}"
+          extractor.py
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APP_NAME }}-linux
+          path: dist/${{ env.APP_NAME }}
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [build-windows, build-macos, build-linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            artifacts/${{ env.APP_NAME }}-windows/${{ env.APP_NAME }}.exe
+            artifacts/${{ env.APP_NAME }}-macos/${{ env.APP_NAME }}-macos.zip
+            artifacts/${{ env.APP_NAME }}-linux/${{ env.APP_NAME }}

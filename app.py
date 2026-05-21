@@ -23,6 +23,14 @@ class ExtractorApp:
         self.root.title("Extractor y Editor de Partituras para eBooks")
         self.root.geometry("1100x750")
 
+        # App icon
+        base_path = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+        icon_path = os.path.join(base_path, "icon.png")
+        if os.path.exists(icon_path):
+            icon_image = ImageTk.PhotoImage(Image.open(icon_path))
+            self.root.iconphoto(True, icon_image)
+            self._icon_ref = icon_image  # prevent garbage collection
+
         # Variables de estado
         self.doc = None
         self.pdf_path = ""
